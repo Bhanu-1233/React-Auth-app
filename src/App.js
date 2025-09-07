@@ -2,7 +2,8 @@ import React, { useState, useEffect, createContext, useContext } from 'react';
 import axios from 'axios';
 import './App.css';
 
-axios.defaults.baseURL = 'http://localhost:5000';
+// Configure axios defaults - FIXED PORT FROM 5173 TO 5000
+axios.defaults.baseURL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:5000';
 axios.defaults.withCredentials = true;
 
 // Auth Context
@@ -26,6 +27,7 @@ const AuthProvider = ({ children }) => {
       const response = await axios.get('/api/me');
       setUser(response.data.user);
     } catch (error) {
+      console.log('Auth check failed:', error);
       setUser(null);
     } finally {
       setLoading(false);
@@ -33,19 +35,34 @@ const AuthProvider = ({ children }) => {
   };
 
   const login = async (email, password) => {
-    const response = await axios.post('/api/login', { email, password });
-    setUser(response.data.user);
-    return response.data;
+    try {
+      const response = await axios.post('/api/login', { email, password });
+      setUser(response.data.user);
+      return response.data;
+    } catch (error) {
+      console.error('Login error:', error);
+      throw error;
+    }
   };
 
   const register = async (email, password) => {
-    const response = await axios.post('/api/register', { email, password });
-    return response.data;
+    try {
+      const response = await axios.post('/api/register', { email, password });
+      return response.data;
+    } catch (error) {
+      console.error('Register error:', error);
+      throw error;
+    }
   };
 
   const logout = async () => {
-    await axios.post('/api/logout');
-    setUser(null);
+    try {
+      await axios.post('/api/logout');
+      setUser(null);
+    } catch (error) {
+      console.error('Logout error:', error);
+      setUser(null); // Still log out on frontend even if backend fails
+    }
   };
 
   useEffect(() => {
@@ -82,8 +99,11 @@ const Login = () => {
 
     try {
       await login(email, password);
+      // Clear form on successful login
+      setEmail('');
+      setPassword('');
     } catch (error) {
-      setError(error.response?.data?.error || 'Login failed');
+      setError(error.response?.data?.error || 'Login failed. Please check your connection.');
     } finally {
       setLoading(false);
     }
@@ -144,6 +164,12 @@ const Register = () => {
       return;
     }
 
+    if (password.length < 6) {
+      setError('Password must be at least 6 characters long');
+      setLoading(false);
+      return;
+    }
+
     try {
       await register(email, password);
       setSuccess('Registration successful! You can now log in.');
@@ -151,7 +177,7 @@ const Register = () => {
       setPassword('');
       setConfirmPassword('');
     } catch (error) {
-      setError(error.response?.data?.error || 'Registration failed');
+      setError(error.response?.data?.error || 'Registration failed. Please check your connection.');
     } finally {
       setLoading(false);
     }
@@ -212,6 +238,7 @@ const Dashboard = () => {
         const response = await axios.get('/api/dashboard');
         setDashboardData(response.data);
       } catch (error) {
+        console.error('Dashboard fetch error:', error);
         setError('Failed to load dashboard data');
       }
     };
