@@ -230,21 +230,51 @@ const Register = () => {
 const Dashboard = () => {
   const [dashboardData, setDashboardData] = useState(null);
   const [error, setError] = useState('');
+  const [loading, setLoading] = useState(true);
   const { user, logout } = useAuth();
 
   useEffect(() => {
     const fetchDashboardData = async () => {
       try {
-        const response = await axios.get('/api/dashboard');
+        setLoading(true);
+        console.log('Fetching dashboard data...');
+        const response = await axios.get('/api/dashboard', {
+          withCredentials: true,
+          headers: {
+            'Content-Type': 'application/json',
+          }
+        });
+        console.log('Dashboard data received:', response.data);
         setDashboardData(response.data);
+        setError('');
       } catch (error) {
         console.error('Dashboard fetch error:', error);
-        setError('Failed to load dashboard data');
+        if (error.response) {
+          console.error('Error response:', error.response.data);
+          console.error('Error status:', error.response.status);
+          if (error.response.status === 401) {
+            setError('Session expired. Please login again.');
+            // Optionally logout user
+            // logout();
+          } else {
+            setError(`Failed to load dashboard: ${error.response.data?.error || 'Server error'}`);
+          }
+        } else if (error.request) {
+          console.error('No response received:', error.request);
+          setError('Failed to connect to server. Please check your internet connection.');
+        } else {
+          console.error('Request setup error:', error.message);
+          setError('Failed to load dashboard data');
+        }
+      } finally {
+        setLoading(false);
       }
     };
 
-    fetchDashboardData();
-  }, []);
+    if (user) {
+      fetchDashboardData();
+    }
+  }, [user]);
 
   const handleLogout = async () => {
     try {
@@ -253,6 +283,17 @@ const Dashboard = () => {
       console.error('Logout error:', error);
     }
   };
+
+  if (loading) {
+    return (
+      <div className="dashboard">
+        <div className="loading">
+          <div className="spinner"></div>
+          <p>Loading dashboard...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="dashboard">
@@ -266,7 +307,17 @@ const Dashboard = () => {
         </div>
       </div>
       <div className="dashboard-content">
-        {error && <div className="error">{error}</div>}
+        {error && (
+          <div className="error">
+            {error}
+            <button 
+              onClick={() => window.location.reload()} 
+              style={{marginLeft: '10px', padding: '5px 10px'}}
+            >
+              Retry
+            </button>
+          </div>
+        )}
         {dashboardData && (
           <div className="dashboard-card">
             <h2>Dashboard Data</h2>
@@ -275,7 +326,15 @@ const Dashboard = () => {
               <h3>User Details:</h3>
               <p><strong>ID:</strong> {dashboardData.user.id}</p>
               <p><strong>Email:</strong> {dashboardData.user.email}</p>
+              {dashboardData.timestamp && (
+                <p><strong>Last Updated:</strong> {new Date(dashboardData.timestamp).toLocaleString()}</p>
+              )}
             </div>
+          </div>
+        )}
+        {!error && !dashboardData && (
+          <div className="dashboard-card">
+            <p>No dashboard data available.</p>
           </div>
         )}
       </div>
